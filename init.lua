@@ -42,7 +42,21 @@ require('packer').startup(function(use)
   -- Fuzzy Finder Algorithm which requires local dependencies to be built. Only load if `make` is available
   use { 'nvim-telescope/telescope-fzf-native.nvim', run = 'make', cond = vim.fn.executable "make" == 1 }
 
+  -- show outlines
   use { 'simrat39/symbols-outline.nvim' }
+
+  -- golang coverage display
+  use { 'kyoh86/vim-go-coverage' }
+
+  -- terminal wrap
+  use { 'akinsho/toggleterm.nvim' }
+
+  -- smooth scroll
+  use { 'declancm/cinnamon.nvim' }
+
+  -- startup screen
+  -- use { 'glepnir/dashboard-nvim' }
+  use { 'mhinz/vim-startify' }
 
   if is_bootstrap then
     require('packer').sync()
@@ -78,7 +92,7 @@ vim.api.nvim_create_autocmd('BufWritePost', {
 vim.cmd [[au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif]]
 
 -- Auto format on save
-vim.cmd [[autocmd BufWritePre * :Format]]
+vim.cmd [[autocmd BufWritePre * if exists(":Format") | :Format]]
 
 -- Set highlight on search
 vim.o.hlsearch = false
@@ -86,8 +100,15 @@ vim.o.hlsearch = false
 -- Make line numbers default
 vim.wo.number = false
 
+vim.o.hlsearch = true
+vim.o.incsearch = true
+
+vim.o.swapfile = false
+vim.o.backup = false
+vim.o.wb = false
+
 -- Enable mouse mode
-vim.o.mouse = 'a'
+vim.o.mouse = 'r'
 
 -- tab width
 vim.o.shiftwidth = 2
@@ -173,9 +194,12 @@ require('lualine').setup {
 require('Comment').setup()
 
 -- Enable Hop.nvim
-require('hop').setup()
-vim.keymap.set('n', 's', ":HopWord<cr>", { desc = '' })
-vim.keymap.set({ 'n' }, 'f', ":HopWordCurrentLine<cr>", { desc = '' })
+require('hop').setup({
+  extend_visual = true,
+})
+vim.keymap.set('n', 's', "<cmd>HopWord<cr>", { desc = '' })
+vim.keymap.set('v', 'f', "<cmd>HopWord<cr>", { desc = '' })
+vim.keymap.set('n', 'f', ":HopWordCurrentLine<cr>", { desc = '' })
 
 -- Enable web-devicons
 -- disable netrw at the very start of your init.lua (strongly advised)
@@ -340,7 +364,7 @@ local on_attach = function(_, bufnr)
 
   -- See `:help K` for why this keymap
   nmap('K', vim.lsp.buf.hover, 'Hover Documentation')
-  nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
+  -- nmap('<C-k>', vim.lsp.buf.signature_help, 'Signature Documentation')
 
   -- Lesser used LSP functionality
   nmap('gD', vim.lsp.buf.declaration, '[G]oto [D]eclaration')
@@ -368,7 +392,7 @@ local capabilities = require('cmp_nvim_lsp').update_capabilities(vim.lsp.protoco
 require('mason').setup()
 
 -- Enable the following language servers
-local servers = { 'gopls', 'rust_analyzer', 'pyright', 'tsserver', "svelte", "tailwindcss" }
+local servers = { 'gopls', 'rust_analyzer', 'pyright', 'tsserver', "svelte", "tailwindcss", "yamlls" }
 
 -- Ensure the servers above are installed
 require('mason-lspconfig').setup {
@@ -411,6 +435,23 @@ require('lspconfig').sumneko_lua.setup {
     },
   },
 }
+
+-- golang auto-import
+function go_org_imports(wait_ms)
+  local params = vim.lsp.util.make_range_params()
+  params.context = { only = { "source.organizeImports" } }
+  local result = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, wait_ms)
+  for cid, res in pairs(result or {}) do
+    for _, r in pairs(res.result or {}) do
+      if r.edit then
+        local enc = (vim.lsp.get_client_by_id(cid) or {}).offset_encoding or "utf-16"
+        vim.lsp.util.apply_workspace_edit(r.edit, enc)
+      end
+    end
+  end
+end
+
+vim.cmd [[autocmd BufWritePre *.go lua go_org_imports()]]
 
 -- nvim-cmp setup
 local cmp = require 'cmp'
@@ -455,5 +496,24 @@ cmp.setup {
   },
 }
 
--- The line beneath this is called `modeline`. See `:help modeline`
--- vim: ts=2 sts=2 sw=2 et
+-- terminal setup
+function _G.set_terminal_keymaps()
+  local opts = { buffer = 0 }
+  vim.keymap.set('t', '<esc>', [[<C-\><C-n>]], opts)
+  vim.keymap.set('t', 'jk', [[<C-\><C-n>]], opts)
+  vim.keymap.set('t', '<C-h>', [[<Cmd>wincmd h<CR>]], opts)
+  vim.keymap.set('t', '<C-j>', [[<Cmd>wincmd j<CR>]], opts)
+  vim.keymap.set('t', '<C-k>', [[<Cmd>wincmd k<CR>]], opts)
+  vim.keymap.set('t', '<C-l>', [[<Cmd>wincmd l<CR>]], opts)
+end
+
+require("toggleterm").setup {
+  direction = "float"
+}
+
+-- if you only want these mappings for toggle term use term://*toggleterm#* instead
+vim.cmd('autocmd! TermOpen term://* lua set_terminal_keymaps()')
+vim.keymap.set("n", "\\", ":ToggleTerm<cr>")
+
+-- smooth scroll
+require('cinnamon').setup()
